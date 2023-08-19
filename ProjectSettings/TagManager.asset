@@ -27,6 +27,15 @@ TagManager:
   - ElectricStation
   - Block
   - MagnetPositions
+  - RoadBattery
+  - MagnetManager
+  - KeyLockManager
+  - BombLock
+  - Trail
+  - VolumeSliderCanvas
+  - Cursor
+  - CountdownText
+  - Spark
   layers:
   - Default
   - TransparentFX
@@ -61,6 +70,9 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: Cursor
+    uniqueID: 3994439107
+    locked: 0
   - name: Default
     uniqueID: 0
     locked: 0

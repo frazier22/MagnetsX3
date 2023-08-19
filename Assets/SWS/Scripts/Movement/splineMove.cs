@@ -21,40 +21,34 @@ namespace SWS
     public class splineMove : MonoBehaviour
     {
         //CUSTOM IMPLEMENTATION
-        private float timeElapsed = 0F;
+        private float accelerationElapsed;
+        private float rateOfAcceleration;
+        private float timeDelay;
+        private float timer;
+        private float totalSpeed;
+        private Player player; //Level, Rate of acceleration variables
         private float speedLimit = 4F;
         private float startSpeed = 2.0F;
+        private float maxSpeed = 10F;
         private int level;
         private void Awake()
         {
-            level = SceneManager.GetActiveScene().name[SceneManager.GetActiveScene().name.Length - 1] - '0';
-            Debug.Log("SPLINE MOVE: LEVEL " + level);
+            timer = 0F;
+            accelerationElapsed = 0F;
+            totalSpeed = startSpeed;
+            player = GetComponent<Player>();
+            rateOfAcceleration = player.RateOfAcceleration;
+            timeDelay = player.DelayBeforeAcceleration;
+            startSpeed = player.startSpeed;
+            maxSpeed = player.maxSpeed;
         }
         private void Update()
         {
-            //DEVELOPER SHORTCUTS: Skip to checkpoints
-            if(Input.GetKeyDown(KeyCode.Alpha1))
+            timer += Time.deltaTime;
+            if(timer >= timeDelay)
             {
-                W1_L5_SetCheckpoint(1);
-                ResetToStart();
-                StartMove();
-            }
-            else if(Input.GetKeyDown(KeyCode.Alpha2))
-            {
-                W1_L5_SetCheckpoint(2);
-                ResetToStart();
-                StartMove();
-            }
-
-            if (level != 5 && level != 4) //No speed increases
-            {
-                timeElapsed += Time.deltaTime / 2F;
-                ChangeSpeed(timeElapsed + 1F);
-                if (speed >= speedLimit)
-                {
-                    timeElapsed -= Time.deltaTime / 2F;
-                    ChangeSpeed(timeElapsed + 1F);
-                }
+                accelerationElapsed += rateOfAcceleration * Time.deltaTime;
+                ChangeSpeed(accelerationElapsed / 2.0F + startSpeed);
             }
         }
 
@@ -73,6 +67,28 @@ namespace SWS
             }
         }
         private int start = 0;
+
+        /// <summary>
+        /// Change running tween speed by manipulating its timeScale.
+        /// <summary>
+        public void ChangeSpeed(float value)
+        {
+            if(value >= maxSpeed)
+            {
+                value = maxSpeed;
+            }
+            //calulate new timeScale value based on original speed
+            float newValue;
+            if (timeValue == TimeValue.speed)
+                newValue = value / originSpeed;
+            else
+                newValue = originSpeed / value;
+
+            //set speed, change timeScale percentually
+            speed = value;
+            if (tween != null)
+                tween.timeScale = newValue;
+        }
         //END OF CUSTOM IMPLEMENTATION
 
         /// <summary>
@@ -311,7 +327,8 @@ namespace SWS
         {
             //CUSTOM IMPLEMENTATION
             speed = startSpeed;
-            timeElapsed = 0F;
+            accelerationElapsed = 0F;
+            timer = 0F;
             //END OF CUSTOM IMPLEMENTATION
             if (!moveToPathBool) startAt = 0;
             wpPos = new Vector3[waypoints.Length - startAt];
@@ -784,24 +801,6 @@ namespace SWS
             }
         }
 
-
-        /// <summary>
-        /// Change running tween speed by manipulating its timeScale.
-        /// <summary>
-        public void ChangeSpeed(float value)
-        {
-            //calulate new timeScale value based on original speed
-            float newValue;
-            if (timeValue == TimeValue.speed)
-                newValue = value / originSpeed;
-            else
-                newValue = originSpeed / value;
-
-            //set speed, change timeScale percentually
-            speed = value;
-            if (tween != null)
-                tween.timeScale = newValue;
-        }
 
 
         /// <summary>

@@ -4,17 +4,20 @@ using UnityEngine;
 
 public class Interactable : MonoBehaviour
 {
+    public enum ForceFieldState { None, Weak, Strong }
     public enum Direction { Up, Down, Left, Right } 
-    public enum PullDirection { None, Up, Down, Left, Right, DiagonalLeftUp, Locked }
-    private enum LockType { None, Left, Right, Up, Down }
+    public enum PullDirection { None, Left, Up, Right, Down, Locked }
+    public enum LockType { None, Left, Right, Up, Down }
     private int lockIndex = 0;
-    private LockType currLockType;
+    [HideInInspector] public LockType currLockType;
     private Rigidbody2D rb;
     [HideInInspector] public bool pulling;
+    [HideInInspector] public bool resetting;
     [HideInInspector] public Transform startPos;
     private int id;
     [HideInInspector] public PullDirection pull;
-    [HideInInspector] public Transform pullDest;
+    [HideInInspector] public List<Vector3> pullDestHistory;
+    [HideInInspector] public Vector3 pullDest;
     private List<PullDirection> pullHistory;
     private bool snapped;
     private ParticleSystem magnetTractorBeam;
@@ -23,64 +26,29 @@ public class Interactable : MonoBehaviour
     private SpriteRenderer sr;
     private Color srOriginalColor;
     private Color srLockColor;
-    public bool Charged;
+    [HideInInspector] public bool Charged;
     private ElectricStation electricStation;
     private GameObject electricSpark;
-    public void SetLocked(int index, Transform dest)
-    {
-        lockIndex = index;
-        transform.position = dest.position;
-        snapped = false;
-        pullDest = dest;
-        pull = PullDirection.Locked;
-        currLockType = LockType.None;
-        if (rb.velocity.x > 0) currLockType = LockType.Right;
-        else if (rb.velocity.x < 0) currLockType = LockType.Left;
-        else if (rb.velocity.y > 0) currLockType = LockType.Up;
-        else if (rb.velocity.y < 0) currLockType = LockType.Down;
-        rb.velocity = Vector2.zero;
-
-        string[] spikeInfo = gameObject.name.Split('_');
-        id = int.Parse(spikeInfo[1]);
-    }
-    public void SetPull(Transform dest, MagnetMove.Quadrant pd)
-    {
-        snapped = false;
-        pullDest = dest;   
-        if(pd == MagnetMove.Quadrant.Up)
-        {
-            pull = PullDirection.Up;
-            transform.position = new Vector3(pullDest.position.x, transform.position.y, transform.position.z);
-            pullHistory.Add(pull);
-        }
-        else if(pd == MagnetMove.Quadrant.Down)
-        {
-            pull = PullDirection.Down;
-            transform.position = new Vector3(pullDest.position.x, transform.position.y, transform.position.z);
-            pullHistory.Add(pull);
-        }
-        else if (pd == MagnetMove.Quadrant.Left)
-        {
-            pull = PullDirection.Left;
-            transform.position = new Vector3(transform.position.x, pullDest.position.y, transform.position.z);
-            pullHistory.Add(pull);
-        }
-        else if (pd == MagnetMove.Quadrant.Right)
-        {
-            pull = PullDirection.Right;
-            transform.position = new Vector3(transform.position.x, pullDest.position.y, transform.position.z);
-            pullHistory.Add(pull);
-        }
-        else if(pd == MagnetMove.Quadrant.DiagonalLeft)
-        {
-            pull = PullDirection.DiagonalLeftUp;
-            pullHistory.Add(pull);
-        }
-    }
+    private GameObject spike;
+    private List<Vector3> sourceHistory;
+    [HideInInspector] public bool unlocking;
+    [HideInInspector] public KeyLock currKeyLock;
+    private ForceFieldState forceFieldState;
+    private ForceFieldState prevForceFieldState;
+    private ParticleSystem forceFieldNone;
+    private ParticleSystem forceFieldWeak;
+    private ParticleSystem forceFieldStrong;
+    private ParticleSystem.VelocityOverLifetimeModule forceFieldStrongVelocity;
+    private Vector3 ffHide;
+    private Vector3 ffVisible;
+    [SerializeField] public bool isAttractedToStart;
     void Awake()
     {
-        electricSpark = transform.GetChild(2).gameObject;
-        if(GameObject.FindGameObjectWithTag("ElectricStation")) electricStation = GameObject.FindGameObjectWithTag("ElectricStation").GetComponent<ElectricStation>();
+        ffHide = new Vector3(500F, 500F, 500F);
+        ffVisible = new Vector3(0, -0.06F, 0F);
+        currKeyLock = null;
+        electricSpark = transform.GetChild(2).transform.gameObject;
+        if (GameObject.FindGameObjectWithTag("ElectricStation")) electricStation = GameObject.FindGameObjectWithTag("ElectricStation").GetComponent<ElectricStation>();
         currLockType = LockType.None;
         Charged = false;
         sr = transform.GetChild(1).GetComponent<SpriteRenderer>();
@@ -92,30 +60,66 @@ public class Interactable : MonoBehaviour
         snapped = false;
         pull = PullDirection.None;
         pulling = false;
+        resetting = false;
         pullHistory = new List<PullDirection>();
         rb = GetComponent<Rigidbody2D>();
-        startPos = GameObject.FindGameObjectWithTag("Rest" + id).transform;
-    }
+        GameObject start = transform.parent.GetChild(0).gameObject;
+        startPos = start.transform;
+        forceFieldNone = start.transform.GetChild(0).GetComponent<ParticleSystem>();
+        forceFieldNone.transform.localPosition = ffVisible;
+        forceFieldWeak = start.transform.GetChild(1).GetComponent<ParticleSystem>();
+        forceFieldWeak.transform.localPosition = ffHide;
+        forceFieldStrong = start.transform.GetChild(2).GetComponent<ParticleSystem>();
+        forceFieldStrong.transform.localPosition = ffHide;
+        spike = transform.gameObject;
+        pullDestHistory = new List<Vector3>();
+        pullDest = transform.position;
+        sourceHistory = new List<Vector3>();
 
-    public void ResetStage()
+        string[] spikeInfo = transform.parent.gameObject.name.Split('_');
+        id = int.Parse(spikeInfo[1]);
+        unlocking = false;
+
+        forceFieldState = ForceFieldState.None;
+        forceFieldStrongVelocity = forceFieldStrong.velocityOverLifetime;
+        forceFieldStrongVelocity.zMultiplier = forceFieldStrongVelocity.zMultiplier / 2F;
+        if(!isAttractedToStart)
+        {
+            forceFieldNone.gameObject.SetActive(false);
+            forceFieldWeak.gameObject.SetActive(false);
+            forceFieldStrong.gameObject.SetActive(false);
+            transform.parent.GetChild(0).gameObject.SetActive(false);
+        }
+    }
+  
+    public void SetPull(int magnet, Transform dest, MagnetMove.Quadrant pd)
     {
-        transform.position = startPos.position;
-        pullHistory.Clear();
         pull = PullDirection.None;
+        Debug.Log("SET PULL TO MAGNET " + magnet);
+        float speed = 2F;
         snapped = false;
-        Charged = false;
-    }
-
-    private IEnumerator UnlockRoutine(LockType l)
-    {
-        pull = PullDirection.None;
-        yield return new WaitForSeconds(0.025F);
-        if (currLockType == LockType.Left) SetPull(startPos, MagnetMove.Quadrant.Right);
-        else if (currLockType == LockType.Right) SetPull(startPos, MagnetMove.Quadrant.Left);
-        else if (currLockType == LockType.Up) SetPull(startPos, MagnetMove.Quadrant.Down);
-        else if (currLockType == LockType.Down) SetPull(startPos, MagnetMove.Quadrant.Up);
-        magnet.Unlock(lockIndex);
-        currLockType = LockType.None;
+        pullDest = dest.position;
+        pullDestHistory.Add(dest.position);
+        sourceHistory.Add(transform.position);
+        if(pd == MagnetMove.Quadrant.Up)
+        {
+            pull = PullDirection.Up;
+        }
+        else if (pd == MagnetMove.Quadrant.Down)
+        {
+            pull = PullDirection.Down;
+        }
+        if (pd == MagnetMove.Quadrant.Left)
+        {
+            pull = PullDirection.Left;
+        }
+        else if(pd == MagnetMove.Quadrant.Right)
+        {
+            pull = PullDirection.Right;
+        }
+        pullHistory.Add(pull);
+        pulling = true;
+        resetting = false;
     }
     public void ResetPull()
     {
@@ -123,35 +127,46 @@ public class Interactable : MonoBehaviour
         float speed = 3.33F;
         snapped = false;
         mm.UnhideCurrentMagnetHint();
-        if (pull == PullDirection.Locked)
+        pulling = false;
+        if (isAttractedToStart)
         {
-            StartCoroutine(UnlockRoutine(currLockType));
+            resetting = true;
         }
-        else if (pull == PullDirection.Up)
+        if(pull == PullDirection.Locked)
         {
-            rb.velocity = new Vector2(startPos.position.x - transform.position.x, -1.0F * speed);
-            SetPull(startPos, MagnetMove.Quadrant.Down);
+
+            Debug.Log("LOCKED");
         }
-        else if(pull == PullDirection.Down)
-        {
-            rb.velocity = new Vector2(startPos.position.x - transform.position.x, speed);
-            SetPull(startPos, MagnetMove.Quadrant.Up);
-        }
-        else if(pull == PullDirection.Left)
-        {
-            rb.velocity = new Vector2(speed, startPos.position.y - transform.position.y);
-            SetPull(startPos, MagnetMove.Quadrant.Right);
-        }
-        else if(pull == PullDirection.Right)
-        {
-            rb.velocity = new Vector2(-1.0F * speed, startPos.position.y - transform.position.y);
-            SetPull(startPos, MagnetMove.Quadrant.Left);
-        }
-        else if(pull == PullDirection.DiagonalLeftUp)
-        {
-            rb.velocity = new Vector2(-1.0F * speed, speed);
-            SetPull(startPos, MagnetMove.Quadrant.DiagonalLeft);
-        }
+    }
+
+    private IEnumerator Unlock()
+    {
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForSeconds(0.5F);
+        unlocking = false;
+    }
+    public void ResetStage()
+    {
+        spike.transform.position = startPos.position;
+        pullHistory.Clear();
+        pull = PullDirection.None;
+        pullDest = startPos.position;
+        snapped = false;
+        Charged = false;
+        pullDestHistory.Clear();
+        sourceHistory.Clear();
+    }
+
+    private IEnumerator UnlockRoutine(LockType l)
+    {
+        //pull = PullDirection.None;
+        yield return new WaitForSeconds(0.025F);
+        //if (currLockType == LockType.Left) SetPull(startPos, MagnetMove.Quadrant.Right);
+        //else if (currLockType == LockType.Right) SetPull(startPos, MagnetMove.Quadrant.Left);
+        //else if (currLockType == LockType.Up) SetPull(startPos, MagnetMove.Quadrant.Down);
+        //else if (currLockType == LockType.Down) SetPull(startPos, MagnetMove.Quadrant.Up);
+        //magnet.Unlock(lockIndex);
+        //currLockType = LockType.None;
     }
 
     public void RemoveCharge()
@@ -162,33 +177,15 @@ public class Interactable : MonoBehaviour
 
     public void Update()
     {
-        if(!Charged)
+        prevForceFieldState = forceFieldState;
+        //if (pull == PullDirection.Locked || unlocking) return;
+        if (!Charged)
         {
             electricSpark.SetActive(false);
         }
         else
         {
             electricSpark.SetActive(true);
-            if (pull == PullDirection.Left)
-            {
-                electricSpark.transform.localPosition = new Vector3(-1F, 0F, 0F);
-                electricSpark.transform.eulerAngles = new Vector3(0F, 0F, -90F);
-            }
-            else if(pull == PullDirection.Right)
-            {
-                electricSpark.transform.localPosition = new Vector3(1F, 0F, 0F);
-                electricSpark.transform.eulerAngles = new Vector3(0F, 0F, 90F);
-            }
-            else if(pull == PullDirection.Down)
-            {
-                electricSpark.transform.localPosition = new Vector3(0F, -1F, 0F);
-                electricSpark.transform.eulerAngles = Vector3.zero;
-            }
-            else if(pull == PullDirection.Up)
-            {
-                electricSpark.transform.localPosition = new Vector3(0F, 1F, 0F);
-                electricSpark.transform.eulerAngles = new Vector3(0F, 0F, 180F);
-            }
         }
 
         if (pull != PullDirection.Locked)
@@ -197,104 +194,213 @@ public class Interactable : MonoBehaviour
         }
         else
         {
-            sr.color = srLockColor;
+            //sr.color = srLockColor;
+        }
+
+        if (snapped) return;
+
+        if (pull == PullDirection.Left)
+        {
+            electricSpark.transform.localPosition = new Vector3(-1F, 0F, 0F);
+            electricSpark.transform.eulerAngles = new Vector3(0F, 0F, -90F);
+        }
+        else if (pull == PullDirection.Right)
+        {
+            electricSpark.transform.localPosition = new Vector3(1F, 0F, 0F);
+            electricSpark.transform.eulerAngles = new Vector3(0F, 0F, 90F);
+        }
+        else if (pull == PullDirection.Down)
+        {
+            electricSpark.transform.localPosition = new Vector3(0F, -1F, 0F);
+            electricSpark.transform.eulerAngles = Vector3.zero;
+        }
+        else if (pull == PullDirection.Up)
+        {
+            electricSpark.transform.localPosition = new Vector3(0F, 1F, 0F);
+            electricSpark.transform.eulerAngles = new Vector3(0F, 0F, 180F);
+        }
+
+        if(resetting)
+        {
+            if(Mathf.Abs(transform.position.x - startPos.position.x) <= 0.015F && Mathf.Abs(transform.position.y - startPos.position.y) <= 0.015F)
+            {
+                forceFieldState = ForceFieldState.None;
+                resetting = false;
+                transform.position = startPos.position;
+                rb.velocity = Vector2.zero;
+                pull = PullDirection.None;
+            }
+            else {
+                forceFieldState = ForceFieldState.Strong;
+            }
+        }
+
+        if (pulling)
+        {
+            if (isAttractedToStart)
+            {
+                forceFieldState = ForceFieldState.Weak;
+            }
+        }
+
+        if (isAttractedToStart)
+        {
+            if(!resetting && !pulling)
+            {
+                forceFieldState = ForceFieldState.None;
+            }
+            //Force field visual updates
+            if (forceFieldState == ForceFieldState.None)
+            {
+                if (forceFieldWeak.transform.localPosition == ffVisible)
+                {
+                    forceFieldWeak.transform.localPosition = ffHide;
+                    //ParticleSystem.VelocityOverLifetimeModule velocityModule = forceFieldWeak.velocityOverLifetime;
+                    //velocityModule.zMultiplier = velocityModule.zMultiplier / 2F;
+                }
+                if (forceFieldStrong.transform.localPosition == ffVisible)
+                {
+                    forceFieldStrong.transform.localPosition = ffHide;
+                }
+                forceFieldNone.transform.localPosition = ffVisible;
+            }
+            else if (forceFieldState == ForceFieldState.Weak && prevForceFieldState != ForceFieldState.Weak)
+            {
+                StartCoroutine(ForceFieldTransition(forceFieldWeak));
+            }
+            else if (forceFieldState == ForceFieldState.Strong && prevForceFieldState != ForceFieldState.Strong)
+            {
+                StartCoroutine(ForceFieldTransition(forceFieldStrong));
+            }
         }
     }
+
+    private IEnumerator ForceFieldTransition(ParticleSystem ff)
+    {
+        if (ff == forceFieldStrong)
+        {
+            yield return new WaitForSeconds(0.1125F);
+        }
+        ff.transform.localPosition = ffVisible;
+        yield return new WaitForSeconds(0.225F);
+        if(ff == forceFieldWeak)
+        {
+            if(forceFieldState == ForceFieldState.Weak)
+            {
+                forceFieldStrong.transform.localPosition = ffHide;
+                forceFieldNone.transform.localPosition = ffHide;
+            }
+        }
+        else if(ff == forceFieldStrong)
+        {
+            if(forceFieldState == ForceFieldState.Strong)
+            {
+                forceFieldWeak.transform.localPosition = ffHide;
+                forceFieldNone.transform.localPosition = ffHide;
+            }
+        }
+    }
+
     private void FixedUpdate()
     {
-        if (!snapped)
+        if (pull == PullDirection.Locked) return;
+        SetVelocity();
+        if(pulling && !resetting)
         {
-            SetVelocity();
-            if (pull == PullDirection.None || (pull == PullDirection.Locked))
+            if (pull == PullDirection.Up)
             {
-                rb.velocity = Vector2.zero;
-            }
-            else if (pull == PullDirection.Up)
-            {
-                if (transform.position.y >= pullDest.position.y)
+                if (spike.transform.position.y >= pullDest.y)
                 {
                     Snap();
                 }
             }
             else if (pull == PullDirection.Down)
             {
-                if (transform.position.y <= pullDest.position.y)
+                if (spike.transform.position.y <= pullDest.y)
                 {
                     Snap();
                 }
             }
             else if (pull == PullDirection.Left)
             {
-                if (transform.position.x <= pullDest.position.x)
+                if (spike.transform.position.x <= pullDest.x)
                 {
                     Snap();
                 }
             }
             else if (pull == PullDirection.Right)
             {
-                if (transform.position.x >= pullDest.position.x)
+                if (spike.transform.position.x >= pullDest.x)
                 {
                     Snap();
                 }
             }
-            else if(pull == PullDirection.DiagonalLeftUp)
-            {
-                if((transform.position.x <= pullDest.position.x && transform.position.y >= pullDest.position.y)) {
-                    Snap();
-                }
-            }
         }
     }
+
+    private void SetVelocity()
+    {
+        if ((resetting && sourceHistory.Count == 0) || snapped)
+        {
+            rb.velocity = Vector2.zero;
+            return;
+        }
+
+        if (pulling)
+        {
+            Vector3 dest = pullDestHistory[pullDestHistory.Count - 1];
+            Vector3 v = 2F * Vector3.Normalize(new Vector3(dest.x - transform.position.x, dest.y - transform.position.y, 0F));
+            rb.velocity = v;
+        }
+        else if (resetting)
+        {
+            Vector3 dest = startPos.position;
+            Vector3 v = 1.5F * Vector3.Normalize(new Vector3(dest.x - transform.position.x, dest.y - transform.position.y, 0F));
+            rb.velocity = v;
+        }
+        else
+        {
+            rb.velocity = Vector2.zero;
+        }
+    }
+
 
     private void Snap()
     {
         Charged = false;
+        resetting = false;
+        pulling = false;
         rb.velocity = Vector2.zero;
         if (pull == PullDirection.Up || pull == PullDirection.Down)
         {
-            transform.position = new Vector3(transform.position.x, pullDest.position.y, transform.position.z);
+            spike.transform.position = new Vector3(pullDest.x, pullDest.y, transform.position.z);
         }
-        else if (pull == PullDirection.Left || pull == PullDirection.Right)
+        else if (pull == PullDirection.Left)
         {
-            transform.position = new Vector3(pullDest.position.x, transform.position.y, transform.position.z);
+            spike.transform.position = new Vector3(pullDest.x, pullDest.y, transform.position.z);
         }
-        if (pullDest != startPos)
+        else if (pull == PullDirection.Right)
         {
-            snapped = true;
-            magnet.snapBlocked = true;
-            mm.HideCurrentMagnetHint();
+            spike.transform.position = new Vector3(pullDest.x, pullDest.y, transform.position.z);
         }
-        else
-        {
-            pull = PullDirection.None;
-        }
-    }
-    private void SetVelocity()
-    {
-        if (snapped || pull == PullDirection.None)
-        {
-            rb.velocity = Vector2.zero;
-        }
-        else if (pull == PullDirection.Up)
-        {
-            rb.velocity = new Vector2(pullDest.position.x - transform.position.x, 2F);
-        }
-        else if (pull == PullDirection.Down)
-        {
-            rb.velocity = new Vector2(pullDest.position.x - transform.position.x, -2F);
-        }
-        else if(pull == PullDirection.Left)
-        {
-            rb.velocity = new Vector2(-2F, pullDest.position.y - transform.position.y);
-        }
-        else if(pull == PullDirection.Right)
-        {
-            rb.velocity = new Vector2(2F, pullDest.position.y - transform.position.y);
-        }
-        else if(pull == PullDirection.DiagonalLeftUp)
-        {
-            rb.velocity = new Vector2(2F, -2F);
-        }
+        snapped = true;
+        Debug.Log("SNAPPED");
+        //magnet.snapBlocked = true;
+        mm.HideCurrentMagnetHint();
     }
 
+    public void SetLocked(KeyLock keyLock, int index, Transform dest)
+    {
+        currKeyLock = keyLock;
+        lockIndex = index;
+        spike.transform.position = dest.position;
+        snapped = false;
+        pullDest = dest.position;
+        pull = PullDirection.Locked;
+        if (rb.velocity.x > 1F) currLockType = LockType.Right;
+        else if (rb.velocity.x < 1F) currLockType = LockType.Left;
+        else if (rb.velocity.y > 1F) currLockType = LockType.Up;
+        else if (rb.velocity.y < 1F) currLockType = LockType.Down;
+        rb.velocity = Vector2.zero;
+    }
 }

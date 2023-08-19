@@ -5,6 +5,7 @@ using System.Collections;
 public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler,
                                    IPointerExitHandler
 {
+    private MagnetManager magnetManager;
     private int index;
     SpriteRenderer sr;
     Color regularColor;
@@ -14,26 +15,14 @@ public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHa
     private float flashTime;
     private float selectTimer;
     private float selectTimeLimit;
+    private GameObject cursor;
+    private BoxCollider2D boxCollider;
 
     void Start()
     {
-        //Attach Physics2DRaycaster to the Camera
-        Camera.main.gameObject.AddComponent<Physics2DRaycaster>();
-        addEventSystem();
-    }
-
-    void Awake()
-    {
-        sr = GetComponent<SpriteRenderer>();
-        regularColor = sr.color;
-        hoverColor = Color.gray;
-        mm = GameObject.FindGameObjectWithTag("Magnet").GetComponent<MagnetMove>();
-        flashTime = 0.85F;
-        selectTimer = 0F;
-        selected = false;
-        selectTimeLimit = 3.675F;
+        boxCollider = GetComponent<BoxCollider2D>();
         string[] magnetInfo = gameObject.name.Split('_');
-        if(magnetInfo[0].Equals("MagnetButtonUp"))
+        if (magnetInfo[0].Equals("MagnetButtonUp"))
         {
             gameObject.tag = "Magnet_Up";
         }
@@ -49,8 +38,39 @@ public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHa
         {
             gameObject.tag = "Magnet_Left";
         }
-
+        ExpandClickRange();
         index = int.Parse(magnetInfo[1]);
+        magnetManager = GameObject.FindGameObjectWithTag("MagnetManager").GetComponent<MagnetManager>();
+        magnetManager.RecordMagnetPosition(index, transform);
+        //Attach Physics2DRaycaster to the Camera
+        Camera.main.gameObject.AddComponent<Physics2DRaycaster>();
+        addEventSystem();
+        cursor = GameObject.FindWithTag("Cursor");
+    }
+
+    private void ExpandClickRange()
+    {
+        if(gameObject.tag.Equals("Magnet_Up") || gameObject.tag.Equals("Magnet_Down"))
+        {
+            
+        }
+        else if(gameObject.tag.Equals("Magnet_Left") || gameObject.tag.Equals("Magnet_Right"))
+        {
+        }
+        boxCollider.offset = new Vector2(0F, 1F);
+        boxCollider.size = new Vector2(5.12F, 11.125F);
+    }
+
+    void Awake()
+    {
+        sr = GetComponent<SpriteRenderer>();
+        regularColor = sr.color;
+        hoverColor = Color.gray;
+        mm = GameObject.FindGameObjectWithTag("Magnet").GetComponent<MagnetMove>();
+        flashTime = 0.85F;
+        selectTimer = 0F;
+        selected = false;
+        selectTimeLimit = 3.675F;
     }
 
     private IEnumerator OnMouseHover()
@@ -62,15 +82,16 @@ public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHa
         }
         sr.color = hoverColor;
         transform.GetChild(0).gameObject.SetActive(true);
-        yield return new WaitForSeconds(flashTime);
+        yield return new WaitForSeconds(flashTime * 4F);
         sr.color = regularColor;
         transform.GetChild(0).gameObject.SetActive(false);
         if (!selected) yield break;
-        yield return new WaitForSeconds(flashTime);
+        yield return new WaitForSeconds(flashTime * 0.65F);
         if (!selected) yield break;
         sr.color = hoverColor;
         transform.GetChild(0).gameObject.SetActive(true);
         StartCoroutine(OnMouseHover());
+
     }
 
     public void OnPointerEnter(PointerEventData eventData)
@@ -79,6 +100,7 @@ public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHa
         selected = true;
         transform.GetChild(0).gameObject.SetActive(true);
         StartCoroutine(OnMouseHover());
+        MouseCursor.isPointer = true;
     }
 
     public void OnPointerClick(PointerEventData eventData)
@@ -102,6 +124,8 @@ public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHa
         selected = false;
         transform.GetChild(0).gameObject.SetActive(false);
         selectTimer = 0F;
+        MouseCursor.isPointer = false;
+
     }
 
 
@@ -129,17 +153,4 @@ public class MAGNETBUTTON : MonoBehaviour, IPointerClickHandler, IPointerEnterHa
             }
         }
     }
-    //IPointerClickHandler,
-    //IPointerDownHandler, IPointerEnterHandler,
-    //IPointerUpHandler, IPointerExitHandler
-    //public void OnPointerUp(PointerEventData eventData)
-    //{
-    //    Debug.Log("Mouse Up!");
-    //}
-
-
-    //public void OnPointerDown(PointerEventData eventData)
-    //{
-    //    Debug.Log("Mouse Down!");
-    //}
 }

@@ -4,43 +4,33 @@ using UnityEngine;
 
 public class Music : MonoBehaviour
 {
-    public AudioSource snapClink;
-    public AudioSource unSnapClink;
+    public AudioSource hit;
     public AudioSource chargeUp;
     public AudioSource magnetChangePosition;
     public AudioSource spikeKey;
     public AudioSource win;
-    private AudioSource background;
     public AudioSource backgroundMusic;
-    public AudioSource menuMusic;
     public AudioSource batteryCharge;
     public AudioSource electricDie;
     public AudioSource batteryUncharge;
+    public AudioSource bombExplode;
+    public AudioSource bombDefuse;
 
     private void Awake()
     {
-        background = backgroundMusic;
-        //if(GameObject.FindGameObjectWithTag("MusicManager") == null)
-        //{
-        //    DontDestroyOnLoad(this.gameObject);
-        //    foreach(Transform child in transform)
-        //    {
-        //        DontDestroyOnLoad(this.gameObject);
-        //    }
-        //}
-        //else
-        //{
-        //    Destroy(this.gameObject);
-        //}
-    }
-    public void PlaySnapClink()
-    {
-        snapClink.Play();
+        if(GameObject.FindGameObjectsWithTag("MusicManager").Length > 1)
+        {
+            Destroy(this.gameObject);
+        }
+        else
+        {
+            DontDestroyOnLoad(this.gameObject);
+        }
     }
 
-    public void PlayUnSnapClink()
+    public void PlayHit()
     {
-        unSnapClink.Play();
+        hit.Play();
     }
 
     public void PlayChargeUp()
@@ -78,21 +68,13 @@ public class Music : MonoBehaviour
         batteryUncharge.Play();
     }
 
-    //TEST
-    public void SwapBackgroundMusic()
+    public void PlayBombExplode()
     {
-        if(background == menuMusic)
-        {
-            menuMusic.Pause();
-            backgroundMusic.Play();
-            background = backgroundMusic;
-        }
-        else if(background == backgroundMusic)
-        {
-            menuMusic.loop = true;
-            backgroundMusic.Pause();
-            menuMusic.Play();
-            background = menuMusic;
-        }
+        bombExplode.Play();
+    }
+
+    public void PlayBombDefuse()
+    {
+        bombDefuse.Play();
     }
 }

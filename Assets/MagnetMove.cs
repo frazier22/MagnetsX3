@@ -15,13 +15,14 @@ public class MagnetMove : MonoBehaviour
     private int numMagnets;
     private int magnetLimit;
     private Music music;
+    private Player player;
     void Awake()
     {
+        player = GameObject.FindGameObjectWithTag("Player").GetComponent<Player>();
         GameObject magnetPositions = GameObject.FindGameObjectWithTag("MagnetPositions");
         magnets = new Transform[magnetPositions.transform.childCount];
         for(int i = 0; i < magnetPositions.transform.childCount; i++)
         {
-            Debug.Log(magnetPositions.transform.GetChild(i).gameObject.name);
             magnets[i] = magnetPositions.transform.GetChild(i).transform;
         }
         music = GameObject.FindGameObjectWithTag("MusicManager").GetComponent<Music>();
@@ -116,20 +117,18 @@ public class MagnetMove : MonoBehaviour
         if (index >= magnets.Length) return;
         else if (index >= 0)
         {
-            music.PlayChangeMagnetPosition();
+            if (!player.dying) { music.PlayChangeMagnetPosition(); }
             transform.position = magnets[index].position;
             magnetIndex = index;
             currQuad = quadrants[magnetIndex];
             UpdateMagnetRotation();
             magnet.ResetPulls();
         }
-        else Debug.Log("BUG: SetMagnetPos(index) less than zero");
     }
 
     public void HideCurrentMagnetHint()
     {
-        Debug.Log("HIDE");
-        transform.GetChild(2).gameObject.SetActive(false);
+        magnet.TurnOffBeams();
     }
 
     public void UnhideCurrentMagnetHint()

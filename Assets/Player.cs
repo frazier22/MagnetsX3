@@ -7,10 +7,14 @@ public class Player : MonoBehaviour
 {
     [SerializeField] private GameObject DieParticle;
     [SerializeField] private GameObject WinParticle;
+    [SerializeField] public int GameLevel;
+    [SerializeField] public float RateOfAcceleration;
+    [SerializeField] public float DelayBeforeAcceleration;
+    [SerializeField] public float startSpeed = 2F;
+    [SerializeField] public float maxSpeed = 10F;
     private SpriteRenderer _spriteRenderer;
     private Vector3 startPos;
     private SWS.splineMove move;
-    public Battery battery;
     private float timeElapsed;
     private Color spriteOriginColor;
     private ScreenShake _screenShake;
@@ -21,8 +25,13 @@ public class Player : MonoBehaviour
     private Interactable[] interactables;
     private KeyLock[] keyLocks;
     private Battery[] batteries;
+    private Bomb[] bombs;
     public bool dead;
     private Music music;
+    [HideInInspector] public bool dying = false;
+    private TMPro.TextMeshProUGUI countdown;
+    private bool countingDown = false;
+    private Coroutine cd;
     void Awake()
     {
         music = GameObject.FindGameObjectWithTag("MusicManager").GetComponent<Music>();
@@ -30,7 +39,7 @@ public class Player : MonoBehaviour
         interactables = new Interactable[interactableObjects.Length];
         for(int i = 0; i < interactableObjects.Length; i++)
         {
-            interactables[i] = interactableObjects[i].GetComponent<Interactable>();
+            interactables[i] = interactableObjects[i].GetComponentInParent<Interactable>();
         }
 
         GameObject[] keyLockObjects = GameObject.FindGameObjectsWithTag("KeyLock");
@@ -47,6 +56,13 @@ public class Player : MonoBehaviour
             batteries[i] = batteryObjects[i].GetComponent<Battery>();
         }
 
+        GameObject[] bombObjects = GameObject.FindGameObjectsWithTag("Bomb");
+        bombs = new Bomb[bombObjects.Length];
+        for(int i = 0; i < bombObjects.Length; i++)
+        {
+            bombs[i] = bombObjects[i].GetComponent<Bomb>();
+        }
+
         mm = GameObject.FindGameObjectWithTag("Magnet").GetComponent<MagnetMove>();
         vs = GameObject.FindGameObjectWithTag("VariablesSaver").GetComponent<VariablesSaver>();
         startPos = transform.position;
@@ -57,6 +73,35 @@ public class Player : MonoBehaviour
         spriteOriginColor = _spriteRenderer.color;
 
         _screenShake = FindObjectOfType<ScreenShake>();
+        GameObject vsc = GameObject.FindGameObjectWithTag("VolumeSliderCanvas");
+        foreach(Transform child in vsc.transform) 
+        {
+            if(child.gameObject.name.Equals("Countdown_Text"))
+            {
+                countdown = child.gameObject.GetComponent<TMPro.TextMeshProUGUI>();
+                cd = StartCoroutine(Count());
+            }
+        }
+    }
+
+    private IEnumerator Count()
+    {
+        countingDown = true;
+        countdown.gameObject.SetActive(true);
+        countdown.text = "3~";
+        _spriteRenderer.enabled = false;
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForFixedUpdate();
+        yield return new WaitForSeconds(1F);
+        countdown.text = "2~";
+        yield return new WaitForSeconds(1F);
+        countdown.text = "1!";
+        yield return new WaitForSeconds(1F);
+        countingDown = false;
+        _spriteRenderer.enabled = true;
+        countdown.gameObject.SetActive(false);
+        countdown.text = "3~";
+        move.StartMove();
     }
 
     // Update is called once per frame
@@ -67,19 +112,34 @@ public class Player : MonoBehaviour
         {
             vs.ReloadLevel();
         }
+        else if(Input.GetKeyDown(KeyCode.M) || Input.GetKeyDown(KeyCode.R))
+        {
+            vs.LoadLevel(0);
+        }
         else if (Input.GetKeyDown(KeyCode.Minus)) vs.PreviousLevel();
         else if (Input.GetKeyDown(KeyCode.Equals)) vs.NextLevel();
-        //MUSIC TEST
-        else if(Input.GetKeyDown(KeyCode.M))
+
+        if(countingDown)
         {
-            music.SwapBackgroundMusic();
+            if(Input.GetMouseButtonDown(0))
+            {
+                countingDown = false;
+                StopCoroutine(cd);
+                _spriteRenderer.enabled = true;
+                countdown.gameObject.SetActive(false);
+                vs.deathCountTitleText.gameObject.SetActive(false);
+                vs.deathCountText.gameObject.SetActive(false);
+                countdown.text = "3~";
+                move.StartMove();
+            }
         }
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if(collision.gameObject.CompareTag("Interactable") && collision.gameObject.GetComponent<Interactable>().pull != Interactable.PullDirection.Locked)
+        if(collision.gameObject.CompareTag("Interactable") && collision.gameObject.GetComponentInParent<Interactable>().pull != Interactable.PullDirection.Locked)
         {
+            music.PlayHit();
             Die();
         }
         else if(collision.gameObject.CompareTag("KeyLock") || collision.gameObject.CompareTag("Block"))
@@ -102,6 +162,10 @@ public class Player : MonoBehaviour
                 music.PlayElectricDie();
             }
         }
+        else if(collision.gameObject.CompareTag("BombLock"))
+        {
+            Die();
+        }
     }
 
     private void OnTriggerExit2D(Collider2D collision)
@@ -115,24 +179,47 @@ public class Player : MonoBehaviour
         {
             if (!collision.gameObject.GetComponent<Battery>().charged)
             {
-                Die();
+                //Die();
                 //music.PlayElectricDie();
             }
         }
+        else if(collision.gameObject.CompareTag("BombLock"))
+        {
+            Die();
+            music.PlayBombExplode();
+        }
     }
 
-    public void Die()
+    public bool Die()
     {
+        if(dying)
+        {
+            return true;
+        }
+        transform.position = startPos;
+        vs.RecordDeath();
+        vs.deathCountTitleText.gameObject.SetActive(true);
+        vs.deathCountText.gameObject.SetActive(true);
+        StartCoroutine(FailTimer());
+        dying = true;
+        mm.SetMagnetPos(0);
         Instantiate(DieParticle, transform.position, quaternion.identity);
         _spriteRenderer.color = new Color(0, 0, 0, 0);
         _screenShake.ShakeScreen();
         move.Stop();
         StartCoroutine(RestartLevel());
+        return false;
+    }
+
+    private IEnumerator FailTimer()
+    {
+        yield return new WaitForSeconds(1.5F);
+        vs.deathCountTitleText.gameObject.SetActive(false);
+        vs.deathCountText.gameObject.SetActive(false);
     }
 
     IEnumerator RestartLevel()
     {
-        mm.SetMagnetPos(0);
         foreach (Interactable i in interactables)
         {
             i.ResetStage();
@@ -145,11 +232,18 @@ public class Player : MonoBehaviour
         {
             b.UnCharge();
         }
-        yield return new WaitForSeconds(1f);
+        foreach(Bomb b in bombs)
+        {
+            b.Reset();
+        }
+        countingDown = true;
+        cd = StartCoroutine(Count());
+        yield return new WaitUntil(() => !countingDown);
         move.ResetToStart();
         move.StartMove();
         timeElapsed = 0.0F;
         _spriteRenderer.color = spriteOriginColor;
+        dying = false;
     }
 
     public void createWinParticle()

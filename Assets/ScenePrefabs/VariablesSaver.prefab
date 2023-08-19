@@ -43,5 +43,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 973f1d84556de6b4a8162449e5a68a0d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  gameStarted: 0
   levelRange: 5
   level: 0
+  levelsCompleted: 
+  currentLevel: 0
+  Levels:
+  - New Menu
+  - Level1
+  - Level3
+  - Level2
+  - Level1.5
+  - Level4
+  - Level5
+  - LevelCorrectPosition
+  - LevelElsaKeyLock
+  - Level6
+  - Level7
+  - Level8
+  - Level9
+  - LevelTestBomb
+  - LevelTriangle 2
+  - LevelTriangle
+  research: 

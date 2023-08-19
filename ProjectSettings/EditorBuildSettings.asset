@@ -5,25 +5,52 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: 
-    guid: 00000000000000000000000000000000
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/New Menu.unity
+    guid: 39a4c46f670e2bd458f426b1c76c6793
   - enabled: 1
     path: Assets/Yimeng Test Folder/Scene/Level1.unity
     guid: 98be6c7439eda20419f0e3bfe11712b8
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/Level1.5.unity
+    guid: 9a469e19203fa4147a00a05ea722819e
   - enabled: 1
     path: Assets/Yimeng Test Folder/Scene/Level2.unity
     guid: 85ad36655ba78fd419edb497ada5b0e9
   - enabled: 1
     path: Assets/Yimeng Test Folder/Scene/Level3.unity
-    guid: f9de7626d2b8c5d4db23e963a3066b00
+    guid: fec3bb8814d78a74a868e43145b8d2e9
   - enabled: 1
     path: Assets/Yimeng Test Folder/Scene/Level4.unity
-    guid: ac55abba404277d4e988c54ba277f6b7
+    guid: 9e8c65056c33d974380966c43139c718
   - enabled: 1
     path: Assets/Yimeng Test Folder/Scene/Level5.unity
+    guid: f9de7626d2b8c5d4db23e963a3066b00
+  - enabled: 1
+    path: Assets/YimengNewWorkSpace/LevelCorrectPosition.unity
+    guid: 6b029cf7b7458be4f946a3ed9197ba2a
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/LevelElsaKeyLock.unity
+    guid: b191d1fa1ce27b1409bf1de3fbf60c10
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/Level6.unity
     guid: 3aa4e98069c61ce48a039bb3ffc7fcec
   - enabled: 1
-    path: Assets/Yimeng Test Folder/Scene/Menu.unity
-    guid: b55dbb0701fb8764192cd0c33e2c875a
+    path: Assets/Yimeng Test Folder/Scene/Level7.unity
+    guid: ac55abba404277d4e988c54ba277f6b7
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/Level8.unity
+    guid: f1182ff342c40374f8e18bbf722e85ed
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/Level9.unity
+    guid: cbe5e478eebf18d47b4b37648f5ae177
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/LevelTestBomb.unity
+    guid: b38d60bcd03c8ad48948832ee79483ef
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/LevelTriangle 2.unity
+    guid: 663a4fb973aab9c439edc5dc6cd855a0
+  - enabled: 1
+    path: Assets/Yimeng Test Folder/Scene/LevelTriangle.unity
+    guid: 38eac1ae456d75a46a8664ebbc60661c
   m_configObjects: {}
